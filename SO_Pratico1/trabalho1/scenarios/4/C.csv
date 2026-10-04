@@ -1,0 +1,12 @@
+# Cenario 4 - C: muda de comportamento (batch -> interativo -> batch)
+# Fase 1: batch (CPU longo, sem E/S) -> deve descer de nivel
+3000,0,0
+3000,0,0
+# Fase 2: interativo (CPU curto, E/S frequente) -> deve subir/manter nivel alto
+200,600,0
+200,600,0
+200,600,0
+200,600,0
+# Fase 3: volta a batch -> deve voltar a descer
+3000,0,0
+3000,0,0

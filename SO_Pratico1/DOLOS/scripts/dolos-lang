@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# dolos-lang - switch the DOLOS container's system language
+#
+# Usage:
+#   sudo dolos-lang en             # English (US)
+#   sudo dolos-lang pt             # Portugues de Portugal
+#   sudo dolos-lang es_ES.UTF-8    # any other glibc locale (custom)
+#   dolos-lang --show              # print the current language
+#
+# Must be run as root (use sudo). Takes effect for new shells / logins;
+# run `exec bash -l` or open a new terminal to pick it up immediately.
+
+set -euo pipefail
+
+usage() {
+    echo "Usage: $0 {en|pt|LOCALE|--show}"
+    echo "  en       set language to English (en_US.UTF-8)"
+    echo "  pt       set language to Portugues de Portugal (pt_PT.UTF-8)"
+    echo "  LOCALE   any other glibc locale, e.g. es_ES.UTF-8, fr_FR.UTF-8,"
+    echo "           de_DE.UTF-8 - generated on the fly if not already present"
+    echo "  --show   print the currently configured language"
+    exit 1
+}
+
+[ $# -eq 1 ] || usage
+
+case "$1" in
+    --show)
+        grep -E '^LANG=' /etc/default/locale 2>/dev/null || echo "LANG not set"
+        exit 0
+        ;;
+    en)
+        LOCALE="en_US.UTF-8"
+        LANGUAGE_VAR="en_US:en"
+        ;;
+    pt)
+        LOCALE="pt_PT.UTF-8"
+        LANGUAGE_VAR="pt_PT:pt"
+        ;;
+    *)
+        # Custom locale, e.g. es_ES.UTF-8 / fr_FR.UTF-8 / de_DE.UTF-8
+        LOCALE="$1"
+        case "$LOCALE" in
+            *_*.*) : ;; # looks like xx_XX.CHARSET, proceed
+            *)
+                echo "dolos-lang: '$LOCALE' doesn't look like a locale (expected e.g. es_ES.UTF-8)" >&2
+                usage
+                ;;
+        esac
+        LANGUAGE_VAR="${LOCALE%%.*}:${LOCALE%%_*}"
+        ;;
+esac
+
+if [ "$(id -u)" -ne 0 ]; then
+    echo "dolos-lang: must be run as root (try: sudo dolos-lang $1)" >&2
+    exit 1
+fi
+
+# Make sure the target locale is generated. Uncomment it in /etc/locale.gen
+# if it's already listed (just commented out), otherwise append it (covers
+# arbitrary custom locales that weren't anticipated in the base image).
+if ! locale -a 2>/dev/null | grep -qi "${LOCALE//UTF-8/utf8}"; then
+    if grep -q "^# *${LOCALE} UTF-8" /etc/locale.gen; then
+        sed -i "s/^# *${LOCALE} UTF-8/${LOCALE} UTF-8/" /etc/locale.gen
+    elif ! grep -qF "${LOCALE} UTF-8" /etc/locale.gen; then
+        echo "${LOCALE} UTF-8" >> /etc/locale.gen
+    fi
+    locale-gen
+fi
+
+update-locale LANG="${LOCALE}" LANGUAGE="${LANGUAGE_VAR}" LC_ALL="${LOCALE}"
+
+echo "Language set to ${LOCALE}."
+echo "Open a new shell (or run: exec bash -l) for it to take effect."

@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# dolos-kbd - switch the DOLOS container's keyboard layout
+#
+# Usage:
+#   sudo dolos-kbd pt          # Portuguese (PT)
+#   sudo dolos-kbd pt-mac      # Portuguese, Mac layout
+#   sudo dolos-kbd us          # US
+#   sudo dolos-kbd us-mac      # US, Mac layout
+#   sudo dolos-kbd de          # any other XKB layout code (custom)
+#   sudo dolos-kbd fr:oss      # LAYOUT:VARIANT form, for custom variants
+#   dolos-kbd --show           # print the current layout
+#
+# Updates /etc/default/keyboard (console-setup) so the layout is correct for
+# the virtual console (loadkeys). This image is console-only (no X11/Wayland,
+# no setxkbmap) by design, so there's nothing to configure beyond that.
+#
+# The default layout (PT, or PT-mac on a macOS host) is applied automatically
+# on every container start by entrypoint.sh. Running this command manually
+# marks the layout as user-set (via /etc/dolos/keyboard.manual), so the
+# automatic default is not applied again on future restarts.
+
+set -euo pipefail
+
+usage() {
+    echo "Usage: $0 {pt|pt-mac|us|us-mac|LAYOUT[:VARIANT]|--show}"
+    echo "  pt              Portuguese (PT) layout"
+    echo "  pt-mac          Portuguese (PT), Mac variant"
+    echo "  us              US layout"
+    echo "  us-mac          US, Mac variant"
+    echo "  LAYOUT[:VARIANT] any other XKB layout code, e.g. de, fr:oss, es:mac"
+    echo "  --show          print the currently configured layout"
+    exit 1
+}
+
+[ $# -eq 1 ] || usage
+
+if [ "$1" = "--show" ]; then
+    grep -E '^XKBLAYOUT=|^XKBVARIANT=' /etc/default/keyboard 2>/dev/null
+    exit 0
+fi
+
+case "$1" in
+    pt)
+        LAYOUT="pt"
+        VARIANT=""
+        ;;
+    pt-mac)
+        LAYOUT="pt"
+        VARIANT="mac"
+        ;;
+    us)
+        LAYOUT="us"
+        VARIANT=""
+        ;;
+    us-mac)
+        LAYOUT="us"
+        VARIANT="mac"
+        ;;
+    *)
+        # Custom layout: either "LAYOUT" or "LAYOUT:VARIANT", e.g. de, fr:oss
+        case "$1" in
+            *:*)
+                LAYOUT="${1%%:*}"
+                VARIANT="${1#*:}"
+                ;;
+            *)
+                LAYOUT="$1"
+                VARIANT=""
+                ;;
+        esac
+        ;;
+esac
+
+if [ "$(id -u)" -ne 0 ]; then
+    echo "dolos-kbd: must be run as root (try: sudo dolos-kbd $1)" >&2
+    exit 1
+fi
+
+# --- console-setup (virtual console / loadkeys) -----------------------------
+cat > /etc/default/keyboard <<EOF
+XKBMODEL="pc105"
+XKBLAYOUT="${LAYOUT}"
+XKBVARIANT="${VARIANT}"
+XKBOPTIONS=""
+BACKSPACE="guess"
+EOF
+
+# Regenerate and (best-effort) load the console keymap. In minimal/no-tty
+# containers setupcon may fail to talk to a console device; that's fine, the
+# config file is what matters.
+if command -v setupcon >/dev/null 2>&1; then
+    setupcon --force 2>/dev/null || true
+fi
+
+# Mark as manually set so entrypoint.sh's host-based auto-default doesn't
+# override this on the next container start. Automatic calls from
+# entrypoint.sh set DOLOS_KBD_AUTO=1 and skip this.
+if [ "${DOLOS_KBD_AUTO:-0}" != "1" ]; then
+    mkdir -p /etc/dolos
+    touch /etc/dolos/keyboard.manual
+fi
+
+echo "Keyboard layout set to: ${LAYOUT}${VARIANT:+ (variant: $VARIANT)}"

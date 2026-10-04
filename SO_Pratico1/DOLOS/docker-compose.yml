@@ -1,0 +1,36 @@
+services:
+  dolos:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: dolos:latest
+    container_name: dolos
+    hostname: dolos
+    # Keeps the container running so CLion (Docker toolchain or docker exec)
+    # can attach at any time.
+    tty: true
+    stdin_open: true
+    restart: unless-stopped
+    # sshd runs inside the container (DOLOS_SSH=1 below) so CLion's SSH /
+    # Remote Host toolchain works too, alongside the native Docker toolchain
+    # (which talks to the container directly and doesn't need this port).
+    # Change the host-side port (left of the colon) if 2222 is already taken.
+    ports:
+      - "2222:22"
+    environment:
+      - DOLOS_SSH=1
+      # Sets the default keyboard layout on startup: "mac" -> PT-mac,
+      # anything else (linux/windows/unset) -> PT. Auto-detected and
+      # exported by ./dolos.sh (macOS/Linux) or ./dolos.ps1 (Windows) —
+      # see those scripts, or set it yourself before `docker compose up`.
+      - DOLOS_HOST_OS=${DOLOS_HOST_OS:-linux}
+    volumes:
+      # Mount your course/project folder into the container's home dir so
+      # CLion (running on the host) and DOLOS (in the container) see the
+      # same files. Change the left-hand side to your project path.
+      - ./workspace:/home/aluno/workspace
+    # ptrace/valgrind and gdb need this to attach to processes for debugging.
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp:unconfined
