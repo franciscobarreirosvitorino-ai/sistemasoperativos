@@ -9,16 +9,12 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <strings.h>
 #include <time.h>
 
 #include "queue.h"
 
-/* No ponto de partida só o FIFO está disponível.
- * TODO (alunos): acrescentar "RANDOM", "LRU", "NRU" e "CLOCK" a esta lista (pela
- * mesma ordem do enum eviction_algo_en em virtmem.h), ao switch de evict() e
- * implementar as funções random_eviction() / lru_eviction() / nru_eviction() /
- * clock_eviction(). */
-const char* eviction_algo_str[] = { "FIFO", NULL };
+const char* eviction_algo_str[] = { "FIFO", "RANDOM", "LRU", "NRU", "CLOCK", NULL }; // nome dos 5 algoritmo
 
 static eviction_algo_en eviction_algo = FIFO;
 
@@ -110,10 +106,10 @@ int is_valid(pte_t *page) {
 }
 
 pte_t *find_page(page_table_t *pt, int32_t vpn) {
-    if (pt == NULL || vpn < 0 || (uint32_t)vpn > pt->nvalid) {
+    if (pt == NULL || vpn < 1 || (uint32_t)vpn > pt->nvalid) {
         return NULL;
     }
-    return &pt->ptes[vpn];
+    return &pt->ptes[vpn - 1];
 }
 
 /* ------------------------------------------------------------------ */
@@ -217,7 +213,13 @@ int swap_in(swap_hash_t *swap, frame_desc_t *fd) {
 /* ------------------------------------------------------------------ */
 
 pte_t *page_request(pcb_t *pcb, frame_table_t *frame_table, swap_hash_t *swap, int vpn) {
-    uint32_t current_time_ms = now_ms();
+    /* Relógio lógico: distingue acessos no mesmo milissegundo. */
+    uint32_t current_time_ms = (uint32_t)npageacc + 1;
+    /* NRU de um bit: cada período tem quatro referências globais.
+     * Limpeza antes da primeira referência do período seguinte. */
+    if (eviction_algo == NRU && npageacc > 0 && npageacc % 4 == 0)
+        for (int i = 0; i <= frame_table->eviction_order.top; ++i)
+            frame_table->eviction_order.ids[i].use_bit = 0;
     npageacc++;
 
     pte_t *pte = find_page(&pcb->page_table, vpn);
@@ -232,6 +234,7 @@ pte_t *page_request(pcb_t *pcb, frame_table_t *frame_table, swap_hash_t *swap, i
     }
 
     npagefaults++;
+    if (page_eviction(frame_table, swap, 1) < 0) return NULL;
 
     if (is_valid(pte)) {                        // está em swap
         int32_t next_pfn = pop_free_frame(&frame_table->free_stack);
@@ -280,12 +283,16 @@ int page_eviction(frame_table_t *frame_table, swap_hash_t *swap, int32_t min_pag
             printf("pfn %d has no valid vpn to evict!\n", evict_pfn);
             continue;
         }
+        printf("VM %s: evict pfn=%d pid=%d vpn=%u dirty=%u\n",
+               get_eviction_algo_str(), evict_pfn, fd->pid, fd->vpn, pte->dirty);
         pte->present = 0;
         if (pte->dirty) {
             if (swap_out(swap, fd) < 0) {
                 printf("Failed to swap out vpn %d of process %d\n", fd->vpn, fd->pid);
             }
         }
+        fd->pte = NULL;
+        fd->pid = -1;
         push_free_frame(&frame_table->free_stack, evict_pfn);
     }
     return 0;
@@ -299,7 +306,7 @@ int free_frames_from_memory(frame_table_t *frame_table, int32_t pid) {
     int count = 0;
     for (int i = 0; i < frame_table->num_pframes; i++) {
         frame_desc_t *fd = &frame_table->frames[i];
-        if (fd->pid == pid) {
+        if (fd->pte && fd->pid == pid) {
             push_free_frame(&frame_table->free_stack, i);
             remove_from_eviction_array(&frame_table->eviction_order, i);   // B3
             if (fd->pte) fd->pte->pfn = INVALID_PFN;
@@ -419,6 +426,7 @@ void remove_from_eviction_array(array_t *eviction_arr, int pfn) {
                 eviction_arr->ids[j - 1] = eviction_arr->ids[j];
             }
             eviction_arr->top--;
+            if (i < eviction_arr->last_index) eviction_arr->last_index--;
             if (eviction_arr->last_index > eviction_arr->top) {
                 eviction_arr->last_index = 0;
             }
@@ -427,10 +435,56 @@ void remove_from_eviction_array(array_t *eviction_arr, int pfn) {
     }
 }
 
+/* Remove a vítima preservando a ordem e o ponteiro circular. */
+static int32_t remove_victim(array_t *a, int index) {
+    int32_t pfn = (int32_t)a->ids[index].pfn;
+    remove_from_eviction_array(a, pfn);
+    return pfn;
+}
+
+int32_t random_eviction(array_t *a) {
+    if (!a || a->top < 0) return INVALID_PFN;
+    /* Rejeição evita o enviesamento de rand() % n. */
+    unsigned n = (unsigned)a->top + 1;
+    unsigned r, limit = (unsigned)RAND_MAX - ((unsigned)RAND_MAX % n);
+    do { r = (unsigned)rand(); } while (r >= limit);
+    return remove_victim(a, (int)(r % n));
+}
+
+int32_t lru_eviction(array_t *a) {
+    if (!a || a->top < 0) return INVALID_PFN;
+    int victim = 0;
+    for (int i = 1; i <= a->top; ++i)
+        if (a->ids[i].last_accessed < a->ids[victim].last_accessed) victim = i;
+    return remove_victim(a, victim);
+}
+
+int32_t nru_eviction(array_t *a) {
+    if (!a || a->top < 0) return INVALID_PFN;
+    /* Primeiro R=0; se todos R=1, desempate pela ordem de entrada. */
+    for (int i = 0; i <= a->top; ++i)
+        if (!a->ids[i].use_bit) return remove_victim(a, i);
+    return remove_victim(a, 0);
+}
+
+int32_t clock_eviction(array_t *a) {
+    if (!a || a->top < 0) return INVALID_PFN;
+    for (;;) {
+        int i = a->last_index;
+        if (!a->ids[i].use_bit) return remove_victim(a, i);
+        a->ids[i].use_bit = 0;
+        a->last_index = (i + 1) % (a->top + 1);
+    }
+}
+
 int evict(array_t *eviction_arr) {
     switch (eviction_algo) {
         case FIFO:
             return fifo_eviction(eviction_arr);
+        case RANDOM: return random_eviction(eviction_arr);
+        case LRU: return lru_eviction(eviction_arr);
+        case NRU: return nru_eviction(eviction_arr);
+        case CLOCK: return clock_eviction(eviction_arr);
         default:
             printf("Eviction algorithm '%s' not implemented yet\n", get_eviction_algo_str());
             return INVALID_PFN;

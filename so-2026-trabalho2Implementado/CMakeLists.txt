@@ -9,6 +9,12 @@ add_executable(ossim ossim.c queue.c scheduler.c virtmem.c)
 
 add_executable(application application.c burst_queue.c)
 
+enable_testing()
+add_executable(test_vm test_vm.c virtmem.c queue.c)
+# Os testes usam assert, incluindo nas compilações Release.
+target_compile_options(test_vm PRIVATE -UNDEBUG)
+add_test(NAME algoritmos_vm COMMAND test_vm)
+
 # ---------------------------------------------------------------------------
 # Alvo "archive": cria build/entrega.zip com todos os ficheiros necessarios
 # para compilar e correr o projeto (fontes, cabecalhos, CMakeLists, scripts
@@ -30,10 +36,14 @@ file(GLOB OSSIM_ARCHIVE_ROOT CONFIGURE_DEPENDS RELATIVE "${CMAKE_SOURCE_DIR}"
         "${CMAKE_SOURCE_DIR}/*.h"
         "${CMAKE_SOURCE_DIR}/*.csv"
         "${CMAKE_SOURCE_DIR}/*.sh"
+        "${CMAKE_SOURCE_DIR}/*.py"
         "${CMAKE_SOURCE_DIR}/*.md")
 
 file(GLOB_RECURSE OSSIM_ARCHIVE_SCENARIOS CONFIGURE_DEPENDS RELATIVE "${CMAKE_SOURCE_DIR}"
         "${CMAKE_SOURCE_DIR}/scenarios/*")
+file(GLOB_RECURSE OSSIM_ARCHIVE_CENARIOS CONFIGURE_DEPENDS RELATIVE "${CMAKE_SOURCE_DIR}"
+        "${CMAKE_SOURCE_DIR}/cenarios/*"
+        "${CMAKE_SOURCE_DIR}/resultados/*")
 
 add_custom_target(archive
         COMMAND ${CMAKE_COMMAND} -E make_directory "${OSSIM_ARCHIVE_DIR}"
@@ -41,6 +51,7 @@ add_custom_target(archive
         CMakeLists.txt
         ${OSSIM_ARCHIVE_ROOT}
         ${OSSIM_ARCHIVE_SCENARIOS}
+        ${OSSIM_ARCHIVE_CENARIOS}
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
         COMMENT "A criar ${OSSIM_ARCHIVE_DIR}/${OSSIM_ARCHIVE_NAME}"
         VERBATIM)

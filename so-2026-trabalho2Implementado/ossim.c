@@ -94,6 +94,10 @@ int main(int argc, char *argv[]) {
     if (res > 0) return EXIT_SUCCESS;
     if (res < 0) return EXIT_FAILURE;
 
+    if (min_pages_threshold > num_pframes) {
+        fprintf(stderr, "Error: threshold must not exceed pframes\n");
+        return EXIT_FAILURE;
+    }
     signal(SIGINT, handle_signal);
     signal(SIGTERM, handle_signal);
 

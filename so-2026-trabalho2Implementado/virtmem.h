@@ -36,6 +36,10 @@ int init_eviction_arr(array_t *array, int num_pframes);
 int update_eviction_array(array_t *eviction_arr, int pfn, uint32_t current_time_ms);
 void remove_from_eviction_array(array_t *eviction_arr, int pfn);
 int evict(array_t *eviction_arr);
+int32_t random_eviction(array_t *a);
+int32_t lru_eviction(array_t *a);
+int32_t nru_eviction(array_t *a);
+int32_t clock_eviction(array_t *a);
 
 int swap_out(swap_hash_t *swap, frame_desc_t *fd);
 int swap_in(swap_hash_t *swap, frame_desc_t *fd);
