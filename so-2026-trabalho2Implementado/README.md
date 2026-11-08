@@ -17,7 +17,7 @@ O enunciado está em **[`enunciado.md`](enunciado.md)** e o formato dos ficheiro
 ## Páginas e frames
 
 - **Página (virtual)** — bloco de memória do ponto de vista do processo. O espaço
-  de endereços de cada processo é dividido em páginas, numeradas a partir de ****.
+  de endereços de cada processo é dividido em páginas, numeradas a partir de 1.
   São os números que aparecem nos `.csv`. O argumento `--vpages` define quantas
   páginas tem cada processo.
 - **Frame (física)** — bloco da RAM real, do mesmo tamanho que uma página. O
@@ -91,15 +91,15 @@ cd /home/aluno/trabalho2
 
 ```sh
 cd /home/aluno/trabalho2
-./build/application scenarios/basico.csv
+./build/application cenarios/basico.csv
 ```
 
 Para várias aplicações em simultâneo, lance cada uma em segundo plano (`&`) e
 espere por todas:
 
 ```sh
-./build/application scenarios/basico.csv &
-./build/application scenarios/basico.csv &
+./build/application cenarios/basico.csv &
+./build/application cenarios/basico.csv &
 wait
 ```
 
