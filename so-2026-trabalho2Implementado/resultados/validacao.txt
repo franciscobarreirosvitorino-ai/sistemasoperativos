@@ -1,0 +1,40 @@
+$ ./build/test_vm
+VM FIFO: evict pfn=0 pid=123 vpn=3 dirty=1
+VM FIFO: evict pfn=0 pid=123 vpn=1 dirty=1
+VM FIFO: evict pfn=0 pid=123 vpn=3 dirty=0
+VM FIFO: evict pfn=0 pid=123 vpn=2 dirty=1
+VM FIFO: evict pfn=0 pid=123 vpn=3 dirty=0
+VM RANDOM: evict pfn=0 pid=123 vpn=3 dirty=1
+VM RANDOM: evict pfn=0 pid=123 vpn=1 dirty=1
+VM RANDOM: evict pfn=0 pid=123 vpn=3 dirty=0
+VM RANDOM: evict pfn=0 pid=123 vpn=2 dirty=1
+VM RANDOM: evict pfn=0 pid=123 vpn=3 dirty=0
+VM LRU: evict pfn=0 pid=123 vpn=3 dirty=1
+VM LRU: evict pfn=0 pid=123 vpn=1 dirty=1
+VM LRU: evict pfn=0 pid=123 vpn=3 dirty=0
+VM LRU: evict pfn=0 pid=123 vpn=2 dirty=1
+VM LRU: evict pfn=0 pid=123 vpn=3 dirty=0
+VM NRU: evict pfn=0 pid=123 vpn=3 dirty=1
+VM NRU: evict pfn=0 pid=123 vpn=1 dirty=1
+VM NRU: evict pfn=0 pid=123 vpn=3 dirty=0
+VM NRU: evict pfn=0 pid=123 vpn=2 dirty=1
+VM NRU: evict pfn=0 pid=123 vpn=3 dirty=0
+VM CLOCK: evict pfn=0 pid=123 vpn=3 dirty=1
+VM CLOCK: evict pfn=0 pid=123 vpn=1 dirty=1
+VM CLOCK: evict pfn=0 pid=123 vpn=3 dirty=0
+VM CLOCK: evict pfn=0 pid=123 vpn=2 dirty=1
+VM CLOCK: evict pfn=0 pid=123 vpn=3 dirty=0
+Todos os testes VM passaram.
+exit=0
+
+$ ./build/ossim --vm invalido
+Error: invalid / unimplemented eviction algo: invalido
+exit=1
+
+$ ./build/ossim --pframes 2 --threshold 3
+Error: threshold must not exceed pframes
+exit=1
+
+$ ./build/ossim --vm
+Error: --vm requires a name [FIFO, RANDOM, LRU, NRU, CLOCK]
+exit=1

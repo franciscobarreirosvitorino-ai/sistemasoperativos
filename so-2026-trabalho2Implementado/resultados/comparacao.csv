@@ -1,0 +1,11 @@
+cenario,algoritmo,acessos,faltas,swap_in,swap_out
+localidade,FIFO,13,9,4,4
+localidade,RANDOM,13,9,4,3
+localidade,LRU,13,9,4,5
+localidade,NRU,13,10,5,5
+localidade,CLOCK,13,9,4,4
+escritas,FIFO,13,11,6,6
+escritas,RANDOM,13,8,3,3
+escritas,LRU,13,11,6,6
+escritas,NRU,13,11,6,6
+escritas,CLOCK,13,11,6,6
